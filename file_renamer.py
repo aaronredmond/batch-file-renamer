@@ -100,17 +100,53 @@ def generate_new_name(
     return stem + ext
 
 
-def collect_files(root_path: Path, pattern: str = "*", recursive: bool = True) -> list:
+# macOS package extensions that should be treated as single files, not traversed
+MACOS_PACKAGES = {'.app', '.framework', '.bundle', '.plugin', '.kext', '.prefpane', '.qlgenerator', '.saver', '.xpc'}
+
+
+def is_inside_package(file_path: Path) -> bool:
+    """Check if a file is inside a macOS package bundle."""
+    for parent in file_path.parents:
+        if parent.suffix.lower() in MACOS_PACKAGES:
+            return True
+    return False
+
+
+def collect_files(root_path: Path, pattern: str = "*", recursive: bool = True, include_packages: bool = False, include_hidden: bool = False) -> list:
     """Collect all files matching the pattern."""
     print("Scanning for files...", end="", flush=True)
+
+    # Resolve the root path to get the absolute real path
+    root_resolved = root_path.resolve()
 
     if recursive:
         files = list(root_path.rglob(pattern))
     else:
         files = list(root_path.glob(pattern))
 
-    # Filter to only files (not directories)
-    result = sorted([f for f in files if f.is_file()])
+    # Filter to only files (not directories) that are actually within the root path
+    # This prevents following symlinks that point outside the target directory
+    result = []
+    for f in files:
+        if f.is_file():
+            try:
+                # Check if the resolved file path is within the root directory
+                f.resolve().relative_to(root_resolved)
+
+                # Skip hidden files unless explicitly included
+                if not include_hidden and f.name.startswith('.'):
+                    continue
+
+                # Skip files inside macOS packages unless explicitly included
+                if not include_packages and is_inside_package(f):
+                    continue
+
+                result.append(f)
+            except ValueError:
+                # File resolves to outside the root directory, skip it
+                pass
+
+    result = sorted(result)
     print(f" found {len(result)} file(s)")
     return result
 
@@ -129,13 +165,15 @@ def rename_files(
     date_position: str = "prefix",
     file_pattern: str = "*",
     recursive: bool = True,
-    execute: bool = False
+    execute: bool = False,
+    include_hidden: bool = False,
+    include_packages: bool = False
 ) -> list:
     """
     Rename files based on provided options.
     Returns list of (old_path, new_path) tuples.
     """
-    files = collect_files(root_path, file_pattern, recursive)
+    files = collect_files(root_path, file_pattern, recursive, include_packages=include_packages, include_hidden=include_hidden)
     total_files = len(files)
     renames = []
     counter = number_start
@@ -284,6 +322,16 @@ Combine multiple options:
         action="store_true",
         help="Don't process subdirectories"
     )
+    parser.add_argument(
+        "--include-hidden",
+        action="store_true",
+        help="Include hidden files (names starting with '.'). By default, hidden files are skipped."
+    )
+    parser.add_argument(
+        "--include-packages",
+        action="store_true",
+        help="Include files inside macOS packages (.app, .framework, etc.). By default, packages are skipped."
+    )
 
     # Execution control
     parser.add_argument(
@@ -328,7 +376,9 @@ Combine multiple options:
         date_position=args.date_position,
         file_pattern=args.pattern,
         recursive=not args.no_recursive,
-        execute=args.execute
+        execute=args.execute,
+        include_hidden=args.include_hidden,
+        include_packages=args.include_packages
     )
 
     # Output results

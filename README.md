@@ -157,6 +157,8 @@ python file_renamer.py C:\Documents --no-recursive --prefix "doc_"
 | `--date-position POS` | Date placement: `prefix` or `suffix` |
 | `--pattern GLOB` | File pattern to match (default: `*` for all) |
 | `--no-recursive` | Don't process subdirectories |
+| `--include-hidden` | Include hidden files (starting with `.`) |
+| `--include-packages` | Include files inside macOS packages (.app, .framework, etc.) |
 | `--execute` | Actually perform the rename (default is dry-run) |
 
 ## Progress Indicator
@@ -173,6 +175,8 @@ Processing: [==================------------] 92/150 (61%)
 - **Dry-run by default**: The script shows what would be renamed without making changes
 - **Conflict detection**: Skips files if the target name already exists
 - **Preview output**: Review all changes before adding `--execute`
+- **Hidden files skipped**: By default, files starting with `.` (like `.DS_Store`) are not processed. Use `--include-hidden` to override.
+- **macOS packages skipped**: By default, files inside `.app`, `.framework`, `.bundle`, and other macOS packages are not processed. Use `--include-packages` to override.
 
 ## License
 
